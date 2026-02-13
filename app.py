@@ -1,5 +1,19 @@
 from flask import Flask, render_template, request, send_file
 from PIL import Image
+import io
+import base64
+
+app = Flask(__name__)
+
+def message_to_binary(message):
+    return ''.join(format(ord(char), '08b') for char in message)
+
+def binary_to_message(binary_data):
+    chars = [binary_data[i:i+8] for i in range(0, len(binary_data), 8)]
+    # Filter out empty or incomplete bits
+    chars = [c for c in chars if len(c) == 8]
+    return ''.join(chr(int(char, 2)) for char in chars)
+
 def encode_image(image_file, message):
     # Open image directly from the file upload stream (in-memory)
     image = Image.open(image_file).convert('RGB')

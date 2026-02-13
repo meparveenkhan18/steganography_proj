@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
         <h1>Steganography</h1>
@@ -20,15 +22,17 @@
                 <button name="encode" type="submit">Hide Message & Generate Image</button>
             </form>
 
-            {% if encoded %}
-                <div class="result-box">
-                    <div class="success-message">
-                        <span>✅ Message hidden successfully!</span>
-                    </div>
-                    <p style="margin-bottom: 15px; color: #94a3b8; font-size: 0.9rem;">Download this image to share your secret:</p>
-                    <a href="{{ url_for('download_file', filename=encoded) }}" class="download-btn">⬇️ Download Encoded Image</a>
-                    <img src="{{ url_for('static', filename='uploads/' + encoded) }}" class="preview-img" alt="Encoded Image Preview">
+            {% if encoded_image %}
+            <div class="result-box">
+                <div class="success-message">
+                    <span>✅ Message hidden successfully!</span>
                 </div>
+                <p style="margin-bottom: 15px; color: #94a3b8; font-size: 0.9rem;">Download this image to share your
+                    secret:</p>
+                <a href="data:image/png;base64,{{ encoded_image }}" download="secret_image.png" class="download-btn">⬇️
+                    Download Encoded Image</a>
+                <img src="data:image/png;base64,{{ encoded_image }}" class="preview-img" alt="Encoded Image Preview">
+            </div>
             {% endif %}
         </div>
 
@@ -38,18 +42,20 @@
             <h2><span class="icon">🔓</span> Decode Message</h2>
             <form method="POST" enctype="multipart/form-data">
                 <input type="file" name="image" required accept="image/*">
-                <button name="decode" type="submit" style="background: linear-gradient(135deg, #818cf8, #6366f1);">Reveal Secret Message</button>
+                <button name="decode" type="submit"
+                    style="background: linear-gradient(135deg, #818cf8, #6366f1);">Reveal Secret Message</button>
             </form>
 
-            {% if decoded %}
-                <div class="result-box">
-                    <p style="margin-bottom: 10px; color: #fff; font-weight: 600;">Hidden Message Found:</p>
-                    <div class="decoded-text">
-                        {{ decoded }}
-                    </div>
+            {% if decoded_message %}
+            <div class="result-box">
+                <p style="margin-bottom: 10px; color: #fff; font-weight: 600;">Hidden Message Found:</p>
+                <div class="decoded-text">
+                    {{ decoded_message }}
                 </div>
+            </div>
             {% endif %}
         </div>
     </div>
 </body>
+
 </html>

@@ -18,12 +18,21 @@ def binary_to_message(binary_data):
 def encode_image(image_file, message):
     # Open image directly from the file upload stream (in-memory)
     image = Image.open(image_file).convert('RGB')
+    
+    # Resize if too large to prevent serverless timeout/memory issues
+    max_size = (1000, 1000)
+    image.thumbnail(max_size, Image.Resampling.LANCZOS)
+    
     np_img = np.array(image)
     
     # Add delimiter to mark end of message
     binary_msg = message_to_binary(message) + '1111111111111110'
     index = 0
     flat_img = np_img.flatten()
+    
+    # Check if message is too long for the image
+    if len(binary_msg) > len(flat_img):
+        raise ValueError("Message is too long for this image. Please use a larger image or shorter message.")
 
     for i in range(len(flat_img)):
         if index < len(binary_msg):
@@ -65,19 +74,35 @@ def decode_image(image_file):
 def index():
     encoded_image = None
     decoded_message = None
+    error_message = None
 
     if request.method == 'POST':
-        file = request.files.get('image')
-        
-        if file:
-            if 'encode' in request.form:
-                text = request.form['secret']
-                encoded_image = encode_image(file, text)
+        try:
+            file = request.files.get('image')
             
-            elif 'decode' in request.form:
-                decoded_message = decode_image(file)
+            if file:
+                # Basic validation
+                if file.filename == '':
+                    error_message = "No selected file"
+                else:
+                    if 'encode' in request.form:
+                        text = request.form.get('secret', '')
+                        if not text:
+                            error_message = "Please enter a secret message to encode."
+                        else:
+                            encoded_image = encode_image(file, text)
+                    
+                    elif 'decode' in request.form:
+                        decoded_message = decode_image(file)
+            else:
+                error_message = "No file part in the request"
 
-    return render_template('index.html', encoded_image=encoded_image, decoded_message=decoded_message)
+        except Exception as e:
+            # 500 errors are often silent in serverless, this helps debug
+            print(f"Error: {e}") 
+            error_message = f"An error occurred: {str(e)}"
+
+    return render_template('index.html', encoded_image=encoded_image, decoded_message=decoded_message, error=error_message)
 
 if __name__ == '__main__':
     app.run(debug=True)

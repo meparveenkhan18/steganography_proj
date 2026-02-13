@@ -1,20 +1,5 @@
 from flask import Flask, render_template, request, send_file
 from PIL import Image
-import numpy as np
-import io
-import base64
-
-app = Flask(__name__)
-
-def message_to_binary(message):
-    return ''.join(format(ord(char), '08b') for char in message)
-
-def binary_to_message(binary_data):
-    chars = [binary_data[i:i+8] for i in range(0, len(binary_data), 8)]
-    # Filter out empty or incomplete bits
-    chars = [c for c in chars if len(c) == 8]
-    return ''.join(chr(int(char, 2)) for char in chars)
-
 def encode_image(image_file, message):
     # Open image directly from the file upload stream (in-memory)
     image = Image.open(image_file).convert('RGB')
@@ -23,30 +8,46 @@ def encode_image(image_file, message):
     max_size = (1000, 1000)
     image.thumbnail(max_size, Image.Resampling.LANCZOS)
     
-    np_img = np.array(image)
-    
     # Add delimiter to mark end of message
     binary_msg = message_to_binary(message) + '1111111111111110'
-    index = 0
-    flat_img = np_img.flatten()
     
     # Check if message is too long for the image
-    if len(binary_msg) > len(flat_img):
+    width, height = image.size
+    if len(binary_msg) > width * height * 3:
         raise ValueError("Message is too long for this image. Please use a larger image or shorter message.")
 
-    for i in range(len(flat_img)):
-        if index < len(binary_msg):
-            # LSB method
-            flat_img[i] = (int(flat_img[i]) & 254) | int(binary_msg[index])
-            index += 1
-        else:
+    # Create a new image to store the encoded data
+    encoded_image = image.copy()
+    pixels = encoded_image.load()
+    
+    index = 0
+    data_len = len(binary_msg)
+    
+    for y in range(height):
+        for x in range(width):
+            if index < data_len:
+                r, g, b = pixels[x, y]
+                
+                # Encode bits into R, G, B channels
+                if index < data_len:
+                    r = (r & 254) | int(binary_msg[index])
+                    index += 1
+                if index < data_len:
+                    g = (g & 254) | int(binary_msg[index])
+                    index += 1
+                if index < data_len:
+                    b = (b & 254) | int(binary_msg[index])
+                    index += 1
+                    
+                pixels[x, y] = (r, g, b)
+            else:
+                break
+        if index >= data_len:
             break
-
-    encoded_img = flat_img.reshape(np_img.shape)
     
     # Save the encoded image to a memory buffer instead of disk
     buffer = io.BytesIO()
-    Image.fromarray(encoded_img.astype('uint8')).save(buffer, format="PNG")
+    encoded_image.save(buffer, format="PNG")
     buffer.seek(0)
     
     # Convert to base64 string to send to template
@@ -55,17 +56,33 @@ def encode_image(image_file, message):
 
 def decode_image(image_file):
     image = Image.open(image_file).convert('RGB')
-    np_img = np.array(image)
-    flat_img = np_img.flatten()
+    width, height = image.size
+    pixels = image.load()
     
     binary_data = ""
-    for pixel_val in flat_img:
-        binary_data += str(pixel_val & 1)
-        if "1111111111111110" in binary_data:
+    delimiter = "1111111111111110"
+    
+    for y in range(height):
+        for x in range(width):
+            r, g, b = pixels[x, y]
+            
+            binary_data += str(r & 1)
+            if binary_data.endswith(delimiter):
+                break
+                
+            binary_data += str(g & 1)
+            if binary_data.endswith(delimiter):
+                break
+                
+            binary_data += str(b & 1)
+            if binary_data.endswith(delimiter):
+                break
+        
+        if delimiter in binary_data:
             break
 
-    if '1111111111111110' in binary_data:
-        binary_data = binary_data[:binary_data.find('1111111111111110')]
+    if delimiter in binary_data:
+        binary_data = binary_data[:binary_data.find(delimiter)]
         return binary_to_message(binary_data)
     else:
         return "No hidden message found or message is corrupted."
